@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using AzureDataManagement.Utilities;
 using AzureDataManagement.Interfaces;
+using LumenWorks.Framework.IO.Csv;
 
 namespace AzureDataManagement.DataProvider
 {
@@ -54,6 +55,22 @@ namespace AzureDataManagement.DataProvider
             return ret;
         }
 
+        private Dictionary<int, ColumnModel> GetColumns(string[] columns)
+        {
+            var ret = new Dictionary<int, ColumnModel>();
+            var position = 0;
+            foreach (var item in columns)
+            {
+                ret.Add(position++, new ColumnModel
+                {
+                    Name = item,
+                    Position = position,
+                    ColumnType = System.Data.SqlDbType.VarChar
+                });
+            }
+            return ret;
+        }
+
         /// <summary>
         /// Parses the row values
         /// </summary>
@@ -65,7 +82,12 @@ namespace AzureDataManagement.DataProvider
         {
             var ret = new RowModel();
             var position = 0;
-            foreach (var item in rowLine.SplitQuotedList(delim))
+            var rowItems = rowLine.SplitQuotedList(delim);
+
+            if (data.Columns.Count != rowItems.Count)
+                throw new InvalidDataException($"Could not parse data: RowValue: {rowLine}");
+
+            foreach (var item in rowItems)
             {
                 var rowVal = new RowValueModel();
 
@@ -82,6 +104,21 @@ namespace AzureDataManagement.DataProvider
                 {
                     position = 0;
                 }
+            }
+            ret.RowNumber = rowNum;
+            return ret;
+        }
+
+        private RowModel GetRow(CsvReader rowLine, DataModel data, int rowNum)
+        {
+            var ret = new RowModel();
+
+            for (int i = 0; i < data.Columns.Count; i++)
+            {
+                var rowval = new RowValueModel();
+                rowval.ColumnName = data.Columns[i].Name;
+                rowval.ColumnValue = rowLine[i].ToString();
+                ret[rowval.ColumnName] = rowval;
             }
             ret.RowNumber = rowNum;
             return ret;
@@ -107,8 +144,8 @@ namespace AzureDataManagement.DataProvider
             filePath = csvSettings.FilePath;
             delim = csvSettings.Delimeter;
 
-            var line = string.Empty;
-            var first = true;
+            //var line = string.Empty;
+            //var first = true;
             int position = 0;
             var file = new FileInfo(filePath);
 
@@ -117,29 +154,48 @@ namespace AzureDataManagement.DataProvider
             ret.TableName = Path.GetFileNameWithoutExtension(filePath);
 
             // read the text file and translate into data models
-            using (StreamReader sr = new StreamReader(filePath))
+            using (CsvReader csv = new CsvReader(new StreamReader(filePath), true))
             {
-                while ((line = sr.ReadLine()) != null)
+                ret.Columns = GetColumns(csv.GetFieldHeaders());
+
+                while(csv.ReadNextRecord())
                 {
                     try
                     {
-                        if (first)
-                        {
-                            first = false;
-                            ret.Columns = GetColumns(line, delim);
-                        }
-                        else
-                        {
-                            ret[position] = GetRow(line, ret, delim, position);
-                            position++;
-                        }
+                        ret[position] = GetRow(csv, ret, position);
+                        position++;
                     }
-                    catch(Exception e)
+                    catch (Exception e)
                     {
                         var ex = e.Data;
                     }
                 }
             }
+
+            //// read the text file and translate into data models
+            //using (StreamReader sr = new StreamReader(filePath))
+            //{
+            //    while ((line = sr.ReadLine()) != null)
+            //    {
+            //        try
+            //        {
+            //            if (first)
+            //            {
+            //                first = false;
+            //                ret.Columns = GetColumns(line, delim);
+            //            }
+            //            else
+            //            {
+            //                ret[position] = GetRow(line, ret, delim, position);
+            //                position++;
+            //            }
+            //        }
+            //        catch(Exception e)
+            //        {
+            //            var ex = e.Data;
+            //        }
+            //    }
+            //}
             return ret;
         }
 

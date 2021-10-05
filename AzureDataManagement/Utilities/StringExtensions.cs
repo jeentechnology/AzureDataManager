@@ -123,7 +123,8 @@ namespace AzureDataManagement.Utilities
                 if (c.Equals(separator) && !escaped)
                 {
                     // we have a token
-                    tokens.Add(sb.ToString().Trim());
+                    var tokValue = string.IsNullOrEmpty(sb.ToString()) ? string.Empty : sb.ToString();
+                    tokens.Add(tokValue);
                     sb.Clear();
                 }
                 else if (c.Equals(separator) && escaped)
@@ -141,7 +142,7 @@ namespace AzureDataManagement.Utilities
                     sb.Append(c);
                 }
             }
-            tokens.Add(sb.ToString().Trim());
+            tokens.Add(string.IsNullOrEmpty(sb.ToString()) ? string.Empty : sb.ToString());
 
             return tokens;
         }
